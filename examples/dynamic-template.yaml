@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: dynamic-template
+# Submit with:
+#   export DYNAMIC_STEPS_PATH=examples/dynamic-steps.yaml
+#   argo submit --watch --from workflowtemplate/dynamic-template
+spec:
+  entrypoint: main
+  templates:
+  - name: main
+    steps:
+    - - name: start
+        template: whalesay
+        arguments:
+          parameters:
+          - name: message
+            value: start
+  - name: whalesay
+    inputs:
+      parameters:
+      - name: message
+    container:
+      image: docker/whalesay:latest
+      command: [cowsay]
+      args: ["{{inputs.parameters.message}}"]

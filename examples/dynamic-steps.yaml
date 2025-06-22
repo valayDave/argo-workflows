@@ -1,0 +1,7 @@
+maybe-more:
+  - name: dynamic-step
+    template: whalesay
+    arguments:
+      parameters:
+      - name: message
+        value: dynamic message

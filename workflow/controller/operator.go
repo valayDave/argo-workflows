@@ -57,6 +57,7 @@ import (
 	controllercache "github.com/argoproj/argo-workflows/v3/workflow/controller/cache"
 	"github.com/argoproj/argo-workflows/v3/workflow/controller/estimation"
 	"github.com/argoproj/argo-workflows/v3/workflow/controller/indexes"
+	"github.com/argoproj/argo-workflows/v3/workflow/dynamic"
 	"github.com/argoproj/argo-workflows/v3/workflow/metrics"
 	"github.com/argoproj/argo-workflows/v3/workflow/progress"
 	"github.com/argoproj/argo-workflows/v3/workflow/templateresolution"
@@ -2365,6 +2366,30 @@ func (woc *wfOperationCtx) handleNodeFulfilled(ctx context.Context, nodeName str
 		if prevNodeStatus, ok := woc.preExecutionNodePhases[node.ID]; ok && !prevNodeStatus.Fulfilled() {
 			localScope, realTimeScope := woc.prepareMetricScope(node)
 			woc.computeMetrics(ctx, processedTmpl.Metrics.Prometheus, localScope, realTimeScope, false)
+		}
+	}
+
+	// Attempt to generate additional workflow steps dynamically using the
+	// global dynamic graph generator. This is a best-effort operation that
+	// executes the generated steps sequentially under the current node.
+	if generated, err := dynamic.DefaultGenerator.Generate(woc.wf, nodeName); err != nil {
+		woc.log.WithError(err).Error("dynamic graph generation failed")
+	} else if len(generated) > 0 {
+		woc.log.Infof("generated %d dynamic steps for %s", len(generated), nodeName)
+		tmplCtx, err := woc.createTemplateContext(wfv1.ResourceScopeLocal, "")
+		if err != nil {
+			woc.log.WithError(err).Error("failed to create template context for dynamic steps")
+		} else {
+			for i, step := range generated {
+				dynNodeName := fmt.Sprintf("%s.dynamic.%d", nodeName, i)
+				child, err := woc.executeTemplate(ctx, dynNodeName, &step, tmplCtx, step.Arguments, &executeTemplateOpts{boundaryID: nodeName})
+				if err != nil {
+					woc.log.WithError(err).Errorf("dynamic step %s failed", dynNodeName)
+				}
+				if child != nil {
+					woc.addChildNode(nodeName, dynNodeName)
+				}
+			}
 		}
 	}
 	return node
