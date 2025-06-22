@@ -1,7 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
-kind: Workflow
+kind: WorkflowTemplate
 metadata:
-  generateName: dynamic-container-
+  name: dynamic-template
+# Submit with:
+#   export DYNAMIC_STEPS_PATH=examples/dynamic-steps.yaml
+#   argo submit --watch --from workflowtemplate/dynamic-template
 spec:
   entrypoint: main
   templates:

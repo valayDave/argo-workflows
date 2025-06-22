@@ -1,10 +1,7 @@
 package dynamic
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
 	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 	"gopkg.in/yaml.v3"
@@ -52,51 +49,12 @@ func (f FileGenerator) Generate(wf *wfv1.Workflow, nodeName string) ([]wfv1.Work
 	return m[nodeName], nil
 }
 
-// ContainerGenerator runs a Docker container to produce workflow steps. The
-// container's stdout must contain a YAML array of `WorkflowStep` objects.
-// The workflow and node names are provided via WORKFLOW_NAME and NODE_NAME
-// environment variables.
-type ContainerGenerator struct {
-	Image   string
-	Command []string
-}
-
-// Generate executes the container and parses the resulting steps.
-func (c ContainerGenerator) Generate(wf *wfv1.Workflow, nodeName string) ([]wfv1.WorkflowStep, error) {
-	if c.Image == "" {
-		return nil, nil
-	}
-	args := []string{"run", "--rm", c.Image}
-	args = append(args, c.Command...)
-	cmd := exec.Command("docker", args...)
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("WORKFLOW_NAME=%s", wf.Name),
-		fmt.Sprintf("NODE_NAME=%s", nodeName),
-	)
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-	var steps []wfv1.WorkflowStep
-	if err := yaml.Unmarshal(out, &steps); err != nil {
-		return nil, err
-	}
-	return steps, nil
-}
-
 // DefaultGenerator is the global node generator used by the workflow
 // controller. It can be replaced at startup to provide custom implementations.
 var DefaultGenerator NodeGenerator = noopGenerator{}
 
 func init() {
-	if image := os.Getenv("DYNAMIC_GENERATOR_IMAGE"); image != "" {
-		cmdStr := os.Getenv("DYNAMIC_GENERATOR_COMMAND")
-		var cmd []string
-		if cmdStr != "" {
-			cmd = strings.Split(cmdStr, " ")
-		}
-		DefaultGenerator = ContainerGenerator{Image: image, Command: cmd}
-	} else if os.Getenv("DYNAMIC_STEPS_PATH") != "" {
+	if os.Getenv("DYNAMIC_STEPS_PATH") != "" {
 		DefaultGenerator = FileGenerator{}
 	}
 }
