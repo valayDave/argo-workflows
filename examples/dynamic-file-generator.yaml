@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: dynamic-file-
+spec:
+  entrypoint: main
+  templates:
+  - name: main
+    steps:
+    - - name: hello
+        template: whalesay
+        arguments:
+          parameters:
+          - name: message
+            value: hello
+    - - name: maybe-more
+        template: whalesay
+        arguments:
+          parameters:
+          - name: message
+            value: original
+  - name: whalesay
+    inputs:
+      parameters:
+      - name: message
+    container:
+      image: docker/whalesay:latest
+      command: [cowsay]
+      args: ["{{inputs.parameters.message}}"]
